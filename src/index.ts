@@ -58,12 +58,6 @@ function objMapDeep(origin: any, transform: (s: string) => string): any {
   );
 }
 
-function pipe(first: any, ...cbs: Array<(x: any) => any>) {
-  let res = first;
-  for (let i = 0, n = cbs.length; i < n; i++) res = cbs[i](res);
-  return res;
-}
-
 function syncToAsync(str: string): string {
   return str === 'sync' ? 'async' : str;
 }
@@ -75,18 +69,17 @@ function applyPlugins<T = any>(client: T, plugins: Array<any>): T {
   return client;
 }
 
-function hackId<T = any>(client: T): T {
-  (client as any).whoami((err: any, val: any) => {
-    if (err) console.error(err);
-    else {
-      (client as any).id = val.id;
-    }
+function hackId(client: any, cb: Callback<any>) {
+  client.whoami((err: any, val: any) => {
+    if (err) return cb(err);
+
+    client.id = val.id;
+    cb(null, client);
   });
-  return client;
 }
 
 export default function ssbClient(manifest: any): SSBClient {
-  const sanitizedManifest = objMapDeep(manifest, syncToAsync);
+  const manifestOk = objMapDeep(manifest, syncToAsync);
 
   const plugins: Array<any> = [];
 
@@ -98,17 +91,11 @@ export default function ssbClient(manifest: any): SSBClient {
     const address = 'channel~noauth';
 
     ms.client(address, (err: any, stream: any) => {
-      if (err) {
-        cb(err);
-      } else {
-        const client = pipe(
-          muxrpc(sanitizedManifest, null)(),
-          c => hackId(c),
-          c => applyPlugins(c, plugins),
-        );
-        pull(stream, client.createStream(), stream);
-        cb(null, client);
-      }
+      if (err) return cb(err);
+
+      const client = applyPlugins(muxrpc(manifestOk, null)(), plugins);
+      pull(stream, client.createStream(), stream);
+      hackId(client, cb);
     });
   }
 
