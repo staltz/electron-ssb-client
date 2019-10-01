@@ -1,0 +1,31 @@
+{
+  "name": "electron-ssb-client",
+  "version": "0.1.0",
+  "description": "Secure Scuttlebutt API for (Renderer process) Electron apps",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "homepage": "https://github.com/staltz/electron-ssb-client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/staltz/electron-ssb-client"
+  },
+  "scripts": {
+    "compile": "tsc",
+    "prepublishOnly": "npm run compile"
+  },
+  "author": "Andre Staltz",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^12.7.4",
+    "typescript": "3.6.x"
+  },
+  "peerDependencies": {
+    "electron": "*"
+  },
+  "dependencies": {
+    "multiserver": "^3.5.0",
+    "multiserver-electron-ipc": "~1.0.0",
+    "muxrpc": "^6.4.2",
+    "pull-stream": "^3.6.9"
+  }
+}
