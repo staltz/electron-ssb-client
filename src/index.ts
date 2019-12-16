@@ -45,17 +45,14 @@ function noAuthPlugin() {
 }
 
 function objMapDeep(origin: any, transform: (s: string) => string): any {
-  return Object.keys(origin).reduce(
-    (acc, key) => {
-      if (typeof origin[key] === 'object') {
-        acc[key] = objMapDeep(origin[key], transform);
-      } else {
-        acc[key] = transform(origin[key]);
-      }
-      return acc;
-    },
-    {} as any,
-  );
+  return Object.keys(origin).reduce((acc, key) => {
+    if (typeof origin[key] === 'object') {
+      acc[key] = objMapDeep(origin[key], transform);
+    } else {
+      acc[key] = transform(origin[key]);
+    }
+    return acc;
+  }, {} as any);
 }
 
 function syncToAsync(str: string): string {
@@ -78,6 +75,66 @@ function hackId(client: any, cb: Callback<any>) {
   });
 }
 
+function promisifyAsyncApi(fn: any) {
+  return function(...args: Array<any>): Promise<any> | void {
+    if (args.length === 0 || typeof args[args.length - 1] !== 'function') {
+      return new Promise((resolve, reject) => {
+        fn(...args, (err: any, val: any) => {
+          if (err) reject(err);
+          else resolve(val);
+        });
+      });
+    } else {
+      fn(...args);
+    }
+  };
+}
+
+function asyncIterifySourceApi(fn: any) {
+  return function(...args: Array<any>): AsyncIterable<any> | void {
+    const readable = fn(...args);
+    readable[Symbol.asyncIterator] = () => {
+      return {
+        next: () => {
+          return new Promise((resolve, reject) => {
+            readable(null, function(errOrEnd: any, value: any) {
+              if (errOrEnd === true) resolve({done: true});
+              else if (errOrEnd) reject(errOrEnd);
+              else {
+                resolve({done: false, value});
+              }
+            });
+          });
+        },
+      };
+    };
+    return readable;
+  };
+}
+
+function augmentApis(api: any, manifest: any) {
+  for (let name of Object.keys(manifest)) {
+    const value = manifest[name];
+    if (typeof value === 'string') {
+      if (typeof api[name] !== 'function') continue;
+      if (value === 'async') api[name] = promisifyAsyncApi(api[name]);
+      else if (value === 'source') api[name] = asyncIterifySourceApi(api[name]);
+    } else if (typeof value === 'object') {
+      for (let nameNested of Object.keys(value)) {
+        const valueNested = value[nameNested];
+        if (typeof valueNested !== 'string') continue;
+        if (typeof api[name][nameNested] !== 'function') continue;
+        if (valueNested === 'async') {
+          api[name][nameNested] = promisifyAsyncApi(api[name][nameNested]);
+        } else if (valueNested === 'source') {
+          api[name][nameNested] = asyncIterifySourceApi(api[name][nameNested]);
+        }
+      }
+    }
+  }
+  return api;
+}
+
 export default function ssbClient(manifest: any): SSBClient {
   const manifestOk = objMapDeep(manifest, syncToAsync);
 
@@ -93,7 +150,10 @@ export default function ssbClient(manifest: any): SSBClient {
     ms.client(address, (err: any, stream: any) => {
       if (err) return cb(err);
 
-      const client = applyPlugins(muxrpc(manifestOk, null)(), plugins);
+      const client = augmentApis(
+        applyPlugins(muxrpc(manifestOk, null)(), plugins),
+        manifestOk,
+      );
       pull(stream, client.createStream(), stream);
       hackId(client, cb);
     });
