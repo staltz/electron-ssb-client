@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "multiserver": "^3.5.0",
-    "multiserver-electron-ipc": "~1.1.0",
+    "multiserver-electron-ipc": "~1.2.0",
     "muxrpc": "^6.4.2",
     "pull-stream": "^3.6.9"
   }
