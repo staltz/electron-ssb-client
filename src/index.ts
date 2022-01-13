@@ -12,7 +12,7 @@ export interface SSBClient {
   callPromise(): Promise<any>;
 }
 
-export type Keys = {
+export interface Keys {
   id: string;
   public: string;
   private: string;
